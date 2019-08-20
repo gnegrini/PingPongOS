@@ -40,6 +40,7 @@ void BodyPong (void * arg)
 int main (int argc, char *argv[])
 {
    printf ("Main INICIO\n");
+   // comment
 
    pingpong_init () ;
 
