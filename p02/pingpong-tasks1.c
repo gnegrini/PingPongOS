@@ -40,7 +40,7 @@ void BodyPong (void * arg)
 int main (int argc, char *argv[])
 {
    printf ("Main INICIO\n");
-
+//conflito
    pingpong_init () ;
 
    task_create (&Ping, BodyPing, "    Ping") ;
@@ -52,4 +52,5 @@ int main (int argc, char *argv[])
    printf ("Main FIM\n");
 
    exit (0);
+   
 }
