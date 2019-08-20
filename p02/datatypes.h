@@ -10,7 +10,8 @@
 // Estrutura que define uma tarefa
 typedef struct task_t
 {
-  // preencher quando necessário
+    struct task_t *prev, *next;
+    int tid;
 } task_t ;
 
 // estrutura que define um semáforo
