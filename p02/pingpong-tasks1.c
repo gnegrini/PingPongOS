@@ -41,6 +41,8 @@ int main (int argc, char *argv[])
 {
    printf ("Main INICIO\n");
 //conflito
+// comment
+
    pingpong_init () ;
 
    task_create (&Ping, BodyPing, "    Ping") ;
