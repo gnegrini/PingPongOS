@@ -7,11 +7,19 @@
 #ifndef __DATATYPES__
 #define __DATATYPES__
 
+#define STACKSIZE 32768		/* tamanho de pilha das threads */
+#define _XOPEN_SOURCE 600	/* para compilar no MacOS */
+
+#include <stdlib.h>
+#include <ucontext.h>
+
+
 // Estrutura que define uma tarefa
 typedef struct task_t
 {
     struct task_t *prev, *next;
     int tid;
+    ucontext_t context;
 } task_t ;
 
 // estrutura que define um semáforo
