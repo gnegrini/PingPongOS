@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS=-Wall -Werror -ggdb3 -Wextra
+CFLAGS=-Wall -Werror -ggdb3 #-Wextra
 DEPS = datatypes.h pingpong.h
 OBJ = pingpong.o
 
