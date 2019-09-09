@@ -40,7 +40,6 @@ void queue_append (queue_t **queue, queue_t *elem)
 
     if (*queue == NULL)
     {
-        printf("G: A fila esta vazia\n");
         
         // First aponta para o elemento
         *queue = elem;

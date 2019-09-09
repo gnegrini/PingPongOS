@@ -1,6 +1,6 @@
 #include "datatypes.h" // estruturas de dados necessárias
 #include "stdio.h"
-#define DEBUG
+//#define DEBUG
 #include "queue.h"
 #include "pingpong.h"
 
@@ -38,6 +38,7 @@ void pingpong_init()
 
     task_atual = &task_main;
 
+    //uma sempre esta executando
     userTasks = -1;
 
     task_create(&task_dispatcher, dispatcher_body, "NULL");
@@ -121,8 +122,14 @@ void task_exit(int exitCode)
 
     userTasks--;
 
-    free(task_atual->context.uc_stack.ss_sp);
-    task_yield();
+    if (task_atual == &task_dispatcher)
+        task_switch(&task_main);
+    else
+    {
+        //corrigir esse free , da segfault quando a pung encerra
+        free(task_atual->context.uc_stack.ss_sp);
+        task_yield();
+    }
 }
 
 // retorna o identificador da tarefa corrente (main eh 0)
@@ -175,24 +182,20 @@ task_t *scheduler()
 
     task_t *task_retorno = (task_t *)ready_queue;
 
-
     return task_retorno;
 }
 
 void task_yield()
 {
 
-
 #ifdef DEBUG
     printf("task_yield: tarefa corrente %d\n", task_atual->tid);
 #endif
 
-    if (task_atual != &task_dispatcher && task_atual!= &task_main){
+    if (task_atual != &task_dispatcher && task_atual != &task_main)
+    {
         queue_append((queue_t **)&ready_queue, (queue_t *)task_atual);
-        printf("inserindo tarefa na fila\n");
     }
-
-
 
     task_switch(&task_dispatcher);
 }
