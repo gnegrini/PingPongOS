@@ -4,7 +4,6 @@
 #include "queue.h"
 #include "pingpong.h"
 
-
 task_t task_main;
 task_t task_dispatcher;
 task_t *task_atual;
@@ -12,15 +11,14 @@ int next_id;
 
 char *stack;
 
-queue_task *ready_queue;
+task_t *ready_queue;
 
 int userTasks;
 
 // funções gerais ==============================================================
 void dispatcher_body();
 
-task_t* scheduler();
-
+task_t *scheduler();
 
 // Inicializa o sistema operacional; deve ser chamada no inicio do main()
 void pingpong_init()
@@ -43,8 +41,6 @@ void pingpong_init()
     userTasks = -1;
 
     task_create(&task_dispatcher, dispatcher_body, "NULL");
-
-
 
 #ifdef DEBUG
     printf("SO inicializado\n");
@@ -75,6 +71,9 @@ int task_create(task_t *task,               // descritor da nova tarefa
         return (-1);
     }
 
+    task->prev = NULL;
+    task->next = NULL;
+
     //talvez temos que checar o retorno da make context para retornar se deu erro
     makecontext(&(task->context), (void *)(*start_func), 1, arg);
 
@@ -85,7 +84,8 @@ int task_create(task_t *task,               // descritor da nova tarefa
     userTasks++;
 
     //adiciona nova tarefa no final da fila
-    queue_append((queue_t**) &ready_queue, (queue_t*) task);
+    if (task != &task_dispatcher)
+        queue_append((queue_t **)&ready_queue, (queue_t *)task);
 
 #ifdef DEBUG
     printf("task_create: criou tarefa %d\n", task->tid);
@@ -97,16 +97,14 @@ int task_create(task_t *task,               // descritor da nova tarefa
 // alterna a execução para a tarefa indicada
 int task_switch(task_t *task)
 {
-   
-    task->prev = task_atual;
-    task_atual->next = task;
+    task_t *task_old = task_atual;
     task_atual = task;
 
-    #ifdef DEBUG
-        printf("task_switch: trocando contexto %d -> %d\n",task->prev->tid, task->tid);
-    #endif   
-  
-    int rt = swapcontext(&(task->prev->context), &(task->context)); 
+#ifdef DEBUG
+    printf("task_switch: trocando contexto %d -> %d\n", task_old->tid, task_atual->tid);
+#endif
+
+    int rt = swapcontext(&(task_old->context), &(task_atual->context));
     // deu ruim
     if (rt == -1)
         return rt;
@@ -117,25 +115,24 @@ int task_switch(task_t *task)
 // Termina a tarefa corrente, indicando um valor de status encerramento
 void task_exit(int exitCode)
 {
-    #ifdef DEBUG
-        printf ("task_exit: tarefa %d sendo encerrada\n", task_atual->tid) ;
-    #endif
+#ifdef DEBUG
+    printf("task_exit: tarefa %d sendo encerrada\n", task_atual->tid);
+#endif
 
     userTasks--;
 
     free(task_atual->context.uc_stack.ss_sp);
-    task_yield();    
+    task_yield();
 }
 
 // retorna o identificador da tarefa corrente (main eh 0)
 int task_id()
 {
-     #ifdef DEBUG
-        printf ("task_id: tarefa corrente %d\n", task_atual->tid) ;
-    #endif
+#ifdef DEBUG
+    printf("task_id: tarefa corrente %d\n", task_atual->tid);
+#endif
 
-   return task_atual->tid;
-
+    return task_atual->tid;
 }
 
 ////////////// IMPLEMENTAR NA PROXIMA SEMANA /////////////
@@ -148,34 +145,35 @@ void task_suspend(task_t *task, task_t **queue);
 // tarefas prontas ("ready queue") e mudando seu estado para "pronta"
 void task_resume(task_t *task);
 
-
 /////////////////////////////////////////////////////////////
 
-void dispatcher_body(void * arg)
+void dispatcher_body(void *arg)
 {
     task_t *next;
-    while ( userTasks > 0 )
+    while (userTasks > 0)
     {
-    next = scheduler(); 
-    if (next)
+        next = scheduler();
+        if (next)
         {
-        //... // ações antes de lançar a tarefa "next", se houverem
-        task_switch (next) ; // transfere controle para a tarefa "next"
-        //... // ações após retornar da tarefa "next", se houverem
+            //... // ações antes de lançar a tarefa "next", se houverem
+
+            queue_remove((queue_t **)&ready_queue, (queue_t *)next);
+            task_switch(next); // transfere controle para a tarefa "next"
+            //... // ações após retornar da tarefa "next", se houverem
         }
     }
-    task_exit(0) ; // encerra a tarefa dispatcher
-
+    task_exit(0); // encerra a tarefa dispatcher
 }
 
-task_t* scheduler(){
+task_t *scheduler()
+{
 
-    if(queue_size((queue_t*) ready_queue)==0){
+    if (queue_size((queue_t *)ready_queue) == 0)
+    {
         return NULL;
     }
 
-    task_t* task_retorno = (task_t*) ready_queue->prev;
-    queue_remove ((queue_t**) &ready_queue, (queue_t*) ready_queue->prev); 
+    task_t *task_retorno = (task_t *)ready_queue;
 
 
     return task_retorno;
@@ -184,12 +182,17 @@ task_t* scheduler(){
 void task_yield()
 {
 
-    queue_append((queue_t**) &ready_queue, (queue_t*) task_atual);
+
+#ifdef DEBUG
+    printf("task_yield: tarefa corrente %d\n", task_atual->tid);
+#endif
+
+    if (task_atual != &task_dispatcher && task_atual!= &task_main){
+        queue_append((queue_t **)&ready_queue, (queue_t *)task_atual);
+        printf("inserindo tarefa na fila\n");
+    }
 
 
-    #ifdef DEBUG
-        printf ("task_yield: tarefa corrente %d\n", task_atual->tid) ;
-    #endif
 
     task_switch(&task_dispatcher);
 }
