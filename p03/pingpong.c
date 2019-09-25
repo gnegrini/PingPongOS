@@ -170,9 +170,10 @@ void dispatcher_body(void *arg)
             task_switch(next); // transfere controle para a tarefa "next"
             
             //... // ações após retornar da tarefa "next", se houverem
-            if(next->status == Finnished)
-                free(task_atual->context.uc_stack.ss_sp);
-
+            if(next->status == Finnished){
+               free(next->context.uc_stack.ss_sp);
+            }
+            
         }
     }
     task_exit(0); // encerra a tarefa dispatcher
