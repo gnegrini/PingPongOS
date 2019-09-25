@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <ucontext.h>
 
+enum stat{Finnished, Normal};
+
 typedef struct queue_task 
 {
    struct queue_task *next ;  // ptr para usar cast com queue_t
@@ -27,6 +29,7 @@ typedef struct task_t
     struct task_t *prev, *next;
     int tid;
     ucontext_t context;
+    int status;
 } task_t ;
 
 // estrutura que define um semáforo

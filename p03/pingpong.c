@@ -54,7 +54,7 @@ void pingpong_init()
 int task_create(task_t *task,               // descritor da nova tarefa
                 void (*start_func)(void *), // funcao corpo da tarefa
                 void *arg)                  // argumentos para a tarefa
-{
+                {
 
     getcontext(&(task->context));
 
@@ -74,6 +74,7 @@ int task_create(task_t *task,               // descritor da nova tarefa
 
     task->prev = NULL;
     task->next = NULL;
+    task->status = Normal;
 
     //talvez temos que checar o retorno da make context para retornar se deu erro
     makecontext(&(task->context), (void *)(*start_func), 1, arg);
@@ -122,13 +123,14 @@ void task_exit(int exitCode)
 
     userTasks--;
 
-    if (task_atual == &task_dispatcher)
+    if (task_atual == &task_dispatcher){
+
         task_switch(&task_main);
-    else
+    }else
     {
-        //corrigir esse free , da segfault quando a pung encerra
-        free(task_atual->context.uc_stack.ss_sp);
-        task_yield();
+        task_atual->status = Finnished;
+        task_switch(&task_dispatcher);
+        
     }
 }
 
@@ -166,7 +168,11 @@ void dispatcher_body(void *arg)
 
             queue_remove((queue_t **)&ready_queue, (queue_t *)next);
             task_switch(next); // transfere controle para a tarefa "next"
+            
             //... // ações após retornar da tarefa "next", se houverem
+            if(next->status == Finnished)
+                free(task_atual->context.uc_stack.ss_sp);
+
         }
     }
     task_exit(0); // encerra a tarefa dispatcher
