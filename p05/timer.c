@@ -14,7 +14,7 @@
 // estrutura que define um tratador de sinal (deve ser global ou static)
 struct sigaction action ;
 
-// estrutura de inicialização to timer
+// estrutura de inicializaÃ§Ã£o to timer
 struct itimerval timer;
 
 // tratador do sinal
@@ -23,9 +23,10 @@ void tratador (int signum)
   printf ("Recebi o sinal %d\n", signum) ;
 }
 
-int main ()
-{
-  // registra a a��o para o sinal de timer SIGALRM
+
+void start_timer(){
+
+  // registra a aï¿½ï¿½o para o sinal de timer SIGALRM
   action.sa_handler = tratador ;
   sigemptyset (&action.sa_mask) ;
   action.sa_flags = 0 ;
@@ -37,7 +38,7 @@ int main ()
 
   // ajusta valores do temporizador
   timer.it_value.tv_usec = 0 ;      // primeiro disparo, em micro-segundos
-  timer.it_value.tv_sec  = 3 ;      // primeiro disparo, em segundos
+  timer.it_value.tv_sec  = 2 ;      // primeiro disparo, em segundos
   timer.it_interval.tv_usec = 0 ;   // disparos subsequentes, em micro-segundos
   timer.it_interval.tv_sec  = 1 ;   // disparos subsequentes, em segundos
 
@@ -47,6 +48,13 @@ int main ()
     perror ("Erro em setitimer: ") ;
     exit (1) ;
   }
+
+}
+
+int main ()
+{
+
+  start_timer();
 
   // laco vazio
   while (1) ;
