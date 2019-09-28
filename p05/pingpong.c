@@ -6,7 +6,7 @@
 #include <sys/time.h>
 //#define DEBUG
 
-#define QUANTUM 5
+#define QUANTUM 20
 
 task_t task_main;
 task_t task_dispatcher;
@@ -237,8 +237,8 @@ task_t *scheduler()
     atual = task_retorno->next;
     do
     {                       
-        
-        atual->prio_d--;
+        if(atual->prio_d > -20)
+            atual->prio_d--;
 
         atual = atual->next;
         
@@ -269,6 +269,12 @@ void task_yield()
 
 // define a prioridade estática de uma tarefa (ou a tarefa atual)
 void task_setprio (task_t *task, int prio){
+    
+    if(prio > 20 || prio < -20){
+       printf("Warning: Limite de prioridade excedido.\n") ;
+       exit(1);
+    }
+    
     if(task == NULL){
         task_atual->prio = prio;
         task_atual->prio_d = prio;
