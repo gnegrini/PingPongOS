@@ -1,3 +1,9 @@
+// PingPongOS
+// Baseado no Projeto do Prof. Maziero
+// Sistemas Operacionais - UTFPR - 2019.2
+// Alunos: Giovane N. M. Costa
+//         Henrique K. Xavier
+
 #include "datatypes.h" // estruturas de dados necessárias
 #include "stdio.h"
 #include "queue.h"
