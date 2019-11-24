@@ -145,6 +145,7 @@ int task_create(task_t *task,               // descritor da nova tarefa
         task->type = User;
         userTasks++;
         queue_append((queue_t **)&ready_queue, (queue_t *)task);
+        task->queue = &ready_queue;
     }
 
 #ifdef DEBUG
@@ -194,8 +195,7 @@ void task_exit(int exitCode)
     
     task_atual->exit_code = exitCode;
 
-
-    //while(queue_size((queue_t *)suspended_queue) != 0 && )
+    
 
     //acorda todas as tarefas que dependem dela encerrar
     if (queue_size((queue_t *)suspended_queue) != 0)
@@ -260,11 +260,13 @@ void task_suspend(task_t *task, task_t **queue){
     
     //retira da fila atual (no caso, a fila de prontas)
     //se task==task_atual, ela já foi tirada da fila pelo scheduler
-    if(task!=task_atual)
-        queue_remove((queue_t **)&ready_queue, (queue_t *)task);
+    //if(task!=task_atual)
+    if(task->queue!= NULL)
+        queue_remove((queue_t **)task->queue, (queue_t *)task);
 
     //adiciona à fila **queue
     queue_append((queue_t **)queue, (queue_t *)task);
+    task->queue = queue;
 
     //muda estado para suspensa
     task->status = Suspended;
@@ -277,11 +279,12 @@ void task_suspend(task_t *task, task_t **queue){
 // tarefas prontas ("ready queue") e mudando seu estado para "pronta"
 void task_resume(task_t *task){
 
-    //retira da fila atual (no caso, a fila de suspensas
-    queue_remove((queue_t **)&suspended_queue, (queue_t *)task);
+    //retira da fila atual
+    queue_remove((queue_t **)task->queue, (queue_t *)task);
     
     //adiciona à fila de tarefas prontas
     queue_append((queue_t **)&ready_queue, (queue_t *)task);
+    task->queue = &ready_queue;
 
     //muda seu estado para pronta
     task->status = Normal;
@@ -320,6 +323,7 @@ void dispatcher_body(void *arg)
         {
             //... // ações antes de lançar a tarefa "next", se houverem
             queue_remove((queue_t **)&ready_queue, (queue_t *)next);
+            next->queue = NULL;
             
             curr_quantum = QUANTUM;
 
@@ -392,6 +396,7 @@ void task_yield()
     if (task_atual != &task_dispatcher)
     {
         queue_append((queue_t **)&ready_queue, (queue_t *)task_atual);
+        task_atual->queue = &ready_queue;
     }
 
 

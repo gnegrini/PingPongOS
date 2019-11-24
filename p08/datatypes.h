@@ -40,6 +40,8 @@ typedef struct task_t
     int activations;
     int exit_code;
     struct task_t *waits;
+    struct task_t **queue;
+    
 } task_t ;
 
 // estrutura que define um semáforo
