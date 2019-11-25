@@ -28,6 +28,12 @@ task_t *sleep_queue;
 
 unsigned int time;
 
+// semaforo para operacoes de barreira
+semaphore_t  s_bar ;
+
+// semaforo para suspensao de tarefas
+semaphore_t  s_susp ;
+
 int userTasks;
 
 // variavel para ativar/desativar preempcao e permitir op. atomicas
@@ -73,8 +79,6 @@ void pingpong_init()
     //salva o contexto atual em ContextMain
     getcontext(&(task_main.context));
 
-    //--
-
     //continua inicializacao do OS
     task_atual = &task_main;
 
@@ -83,6 +87,10 @@ void pingpong_init()
 
     //inicializa o numer de tarefas, uma sempre esta executando => -1
     userTasks = 0;
+
+    //cria semaforo de barreira
+    sem_create (&s_bar, 1) ;
+    sem_create (&s_susp, 1) ;
 
     task_create(&task_dispatcher, dispatcher_body, "NULL");
 
@@ -249,6 +257,7 @@ int task_id()
 // queue e mudando seu estado para "suspensa"; usa a tarefa atual se task==NULL
 void task_suspend(task_t *task, task_t **queue)
 {
+    sem_down(&s_susp);
 
     //atribui  tarefa atual se task==NULL
     if (task == NULL)
@@ -257,8 +266,7 @@ void task_suspend(task_t *task, task_t **queue)
     }
 
     //retira da fila atual (no caso, a fila de prontas)
-    //se task==task_atual, ela já foi tirada da fila pelo scheduler
-    //if(task!=task_atual)
+    //se task==task_atual, ela já foi tirada da fila pelo scheduler    
     if (task->queue != NULL)
         queue_remove((queue_t **)task->queue, (queue_t *)task);
 
@@ -269,8 +277,11 @@ void task_suspend(task_t *task, task_t **queue)
     //muda estado para suspensa
     task->status = Suspended;
 
+    sem_up(&s_susp);
+    
     //passa o controle para o dispatcher executar a proxima tarefa
-    task_switch(&task_dispatcher);
+    if(task == task_atual)
+        task_switch(&task_dispatcher);
 }
 
 // acorda uma tarefa, retirando-a de sua fila atual, adicionando-a à fila de
@@ -278,6 +289,8 @@ void task_suspend(task_t *task, task_t **queue)
 void task_resume(task_t *task)
 {
 
+    sem_down(&s_susp);
+    
     //retira da fila atual
     queue_remove((queue_t **)task->queue, (queue_t *)task);
 
@@ -287,6 +300,8 @@ void task_resume(task_t *task)
 
     //muda seu estado para pronta
     task->status = Normal;
+
+    sem_up(&s_susp);
 
 #ifdef DEBUG
     printf("task_resume: acordou tarefa %d\n", task->tid);
@@ -318,9 +333,9 @@ void task_sleep(int t)
     //calcula o instante em que a tarefa deverá ser acordada
     task_atual->wake_time = systime() + (t * 100);
 
-#ifdef DEBUG
+    #ifdef DEBUG
     printf("task_sleep: dormiu tarefa %d\n", task_atual->tid);
-#endif
+    #endif
 
     //coloca na fila de tarefas adormecidas
     task_suspend(NULL, &sleep_queue);
@@ -331,18 +346,26 @@ void task_sleep(int t)
 // cria um semáforo com valor inicial "value"
 int sem_create(semaphore_t *s, int value)
 {
+    if(s ==NULL)
+        return -1;
+
     s->status = Normal;
     s->count = value;
+    
     return 0;
 }
 
 // requisita o semáforo
 int sem_down(semaphore_t *s)
 {
+    //desativa preempcao
+    preempcao = 0;
 
     //semaforo inexistente ou destruído
-    if (s == NULL || s->status == Destroyed)
+    if (s == NULL || s->status == Destroyed){
+        preempcao =1;
         return -1;
+    }
 
     //se houver, decrementa o contador
     s->count -= 1;
@@ -353,13 +376,13 @@ int sem_down(semaphore_t *s)
         task_suspend(NULL, &s->queue);
     }
 
-    //desativa preempcao
-    preempcao = 0;
 
     //caso o semaforo foi destruido dps da tarefa ja estar fila
-    if (s == NULL || s->status == Destroyed)
+    if (s == NULL || s->status == Destroyed){
+        preempcao = 1;
         return -1;
-
+    }
+    
     return 0;
 }
 
@@ -372,10 +395,7 @@ int sem_up(semaphore_t *s)
         return -1;
 
     //incrementa o contador
-    s->count += 1;
-
-    //reativa preempcao
-    preempcao = 1;
+    s->count += 1;    
 
     //acorda a primeira tarefa da fila do semaforo (se houver)
     if (s->count <= 0)
@@ -384,6 +404,9 @@ int sem_up(semaphore_t *s)
                 printf("Tentando resumir tarefa nula no up");
         task_resume(s->queue);
     }
+
+    //reativa preempcao
+    preempcao = 1;
 
     return 0;
 }
@@ -416,6 +439,102 @@ int sem_destroy(semaphore_t *s)
 
     return 0;
 }
+
+
+/////////////////////////// BARRIERS////////////////////
+
+
+// Inicializa uma barreira
+int barrier_create (barrier_t *b, int N){
+
+    if(b == NULL || N <=0 )
+        return -1;
+
+    b->status = Normal;
+    b->max = N-1;
+    b->count = N-1;
+
+    return 0;
+
+}
+
+// Chega a uma barreira
+int barrier_join (barrier_t *b) {
+    
+    sem_down(&s_bar);    
+
+    if(b == NULL || b->status == Destroyed){
+        return -1;
+        sem_up(&s_bar);
+    }
+
+    if(b->count > 0){
+        b->count -= 1;
+        sem_up(&s_bar);
+        task_suspend(task_atual, &b->queue);
+        return 0;
+    }
+    //acorda todas as tarefas da barreira
+    else
+    {
+        task_t *atual = b->queue;
+        task_t *q_next;
+
+        for (int i = 0; i < b->max; i++)
+        {
+            q_next = atual->next;
+
+            if(atual==NULL)
+                printf("Tentando resumir tarefa nula no destroy");
+            task_resume(atual);
+
+            atual = q_next;
+        }    
+
+        b->count = b->max;
+        sem_up(&s_bar);
+        return 0;
+    }
+    
+
+}
+
+// Destrói uma barreira
+int barrier_destroy (barrier_t *b){
+    
+    if(b == NULL){
+        return -1;
+    }
+
+    sem_down(&s_bar);
+    int count = queue_size((queue_t *)b->queue);
+    //acorda todas as tarefas que dependem da barreira
+    if (count != 0)
+    {
+        task_t *atual = b->queue;
+        task_t *q_next;
+
+        for (int i = 0; i < count; i++)
+        {
+            q_next = atual->next;
+
+            if(atual==NULL)
+                printf("Tentando resumir tarefa nula no destroy");
+            task_resume(atual);
+
+            atual = q_next;
+        }
+    }
+
+    //destroi o semaforo
+    b->status=Destroyed;
+
+    sem_up(&s_bar);
+    return 0;
+
+}
+
+
 
 /////////////////////////////////////////////////////////////
 
@@ -462,8 +581,10 @@ void dispatcher_body(void *arg)
             task_switch(next); // transfere controle para a tarefa "next"
 
             //... // ações após retornar da tarefa "next", se houverem
-            if (next->status == Finished)
+            if (next->status == Finished && next->context.uc_stack.ss_sp != NULL){                
                 free(next->context.uc_stack.ss_sp);
+                next->context.uc_stack.ss_sp = NULL;
+            }
         }
     }
     task_exit(0); // encerra a tarefa dispatcher
@@ -475,7 +596,7 @@ task_t *scheduler()
     //não há tarefas
     if (queue_size((queue_t *)ready_queue) == 0)
     {
-        //printf("SchedErr: fila de prontas vazias\n");
+        printf("SchedErr: fila de prontas vazias\n");
         return NULL;
     }
 
@@ -517,9 +638,9 @@ task_t *scheduler()
 void task_yield()
 {
 
-#ifdef DEBUG
+    #ifdef DEBUG
     printf("task_yield: tarefa corrente %d\n", task_atual->tid);
-#endif
+    #endif
 
     if (task_atual != &task_dispatcher)
     {
@@ -572,10 +693,10 @@ void tratador(int signum)
 
     task_atual->processor_time++;
 
-    if (task_atual->type == User)
+    if (task_atual->type == User && preempcao == 1)
     {
         curr_quantum--;
-        if (curr_quantum <= 0 && preempcao == 1)
+        if (curr_quantum <= 0 )
         {
             task_yield();
         }

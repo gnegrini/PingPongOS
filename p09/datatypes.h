@@ -14,7 +14,7 @@
 #include <ucontext.h>
 
 
-enum stat{Finished, Normal, New, Ready, Running, Suspended, Terminated}; //status das tarefas
+enum stat{Finished, Normal, New, Ready, Running, Suspended, Destroyed}; //status das tarefas
 enum typ{System, User};  //tipos de tarefas
 
 typedef struct queue_task 
@@ -48,7 +48,11 @@ typedef struct task_t
 // estrutura que define um semáforo
 typedef struct
 {
-  // preencher quando necessário
+  
+  int count;
+  task_t *queue;
+  int status;
+
 } semaphore_t ;
 
 // estrutura que define um mutex
@@ -60,7 +64,11 @@ typedef struct
 // estrutura que define uma barreira
 typedef struct
 {
-  // preencher quando necessário
+  int count;
+  int max;
+  task_t *queue;
+  int status;
+
 } barrier_t ;
 
 // estrutura que define uma fila de mensagens

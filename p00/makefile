@@ -8,7 +8,6 @@ OBJ = queue.o testafila.o
 
 testafila: $(OBJ)
 	$(CC) -o $@ $^ $(CFLAGS)
-	rm -f *.o *~ core $(INCDIR)/*~ 
 
 .PHONY: clean
 

@@ -6,7 +6,7 @@ OBJ = queue.o pingpong.o
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: pingpong-sleep
+all: pingpong-sleep .PHONY
 
 pingpong-sleep: $(OBJ) pingpong-sleep.o
 	$(CC) -o $@ $^ $(CFLAGS)

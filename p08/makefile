@@ -6,7 +6,7 @@ OBJ = queue.o pingpong.o
 %.o: %.c $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
-all: pingpong-join
+all: pingpong-join .PHONY
 
 pingpong-join: $(OBJ) pingpong-join.o
 	$(CC) -o $@ $^ $(CFLAGS)
