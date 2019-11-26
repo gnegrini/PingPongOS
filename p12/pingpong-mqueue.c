@@ -54,7 +54,7 @@ void somaBody (void * arg)
 
       // calcula a soma e sua raiz
       soma = v1 + v2 + v3 ;
-      raiz = sqrt (soma) ;
+      raiz = sqrt(soma);
       printf ("               T%d: %d+%d+%d = %f (raiz %f)\n",
 	      task_id(), v1, v2, v3, soma, raiz) ;
 
@@ -91,7 +91,7 @@ void consBody (void * arg)
 
 int main (int argc, char *argv[])
 {
-   int i ;
+   //int i ;
 
    printf ("Main INICIO\n") ;
 
