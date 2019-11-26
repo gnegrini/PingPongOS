@@ -520,6 +520,7 @@ int barrier_destroy (barrier_t *b){
 
             if(atual==NULL)
                 printf("Tentando resumir tarefa nula no destroy");
+            atual->error_code = BarrierDestroyed;
             task_resume(atual);
 
             atual = q_next;

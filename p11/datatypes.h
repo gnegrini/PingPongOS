@@ -16,6 +16,7 @@
 
 enum stat{Finished, Normal, New, Ready, Running, Suspended, Destroyed}; //status das tarefas
 enum typ{System, User};  //tipos de tarefas
+enum err{BarrierDestroyed};
 
 typedef struct queue_task 
 {
@@ -42,6 +43,7 @@ typedef struct task_t
     struct task_t *waits;
     struct task_t **queue;
     unsigned int wake_time;
+    int error_code;
     
 } task_t ;
 
