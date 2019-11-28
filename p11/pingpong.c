@@ -464,8 +464,9 @@ int barrier_join (barrier_t *b) {
     sem_down(&s_bar);    
 
     if(b == NULL || b->status == Destroyed){
-        return -1;
         sem_up(&s_bar);
+        return -1;
+        
     }
 
     if(b->count > 0){
@@ -527,7 +528,7 @@ int barrier_destroy (barrier_t *b){
         }
     }
 
-    //destroi o semaforo
+    //destroi a barreira
     b->status=Destroyed;
 
     sem_up(&s_bar);
