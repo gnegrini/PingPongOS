@@ -60,7 +60,9 @@ typedef struct
 // estrutura que define um mutex
 typedef struct
 {
-  // preencher quando necessário
+  int lock;
+  task_t *queue;
+  int status;
 } mutex_t ;
 
 // estrutura que define uma barreira
@@ -70,7 +72,7 @@ typedef struct
   int max;
   task_t *queue;
   int status;
-
+  semaphore_t sem;
 } barrier_t ;
 
 // estrutura de uma msg para funcionar com fila
@@ -94,6 +96,7 @@ typedef struct
   task_t *task_full_mqueue;  //fila de tarefas que aguardam espaço na fila de mensagens
   task_t *task_empty_mqueue;  //fila de tarefas que aguardam novas mensagens
   int status;
+  semaphore_t sem;
 
 } mqueue_t ;
 
