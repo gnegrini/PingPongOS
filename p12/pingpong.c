@@ -30,15 +30,6 @@ task_t *susp_msg_queue;
 
 unsigned int time;
 
-// semaforo para operacoes de barreira
-semaphore_t  s_bar ;
-
-// semaforo para suspensao de tarefas
-semaphore_t  s_susp ;
-
-// semaforo para operacoes com a fila de msg
-semaphore_t  s_mqueue ;
-
 int userTasks;
 
 // variavel para ativar/desativar preempcao e permitir op. atomicas
@@ -93,10 +84,6 @@ void pingpong_init()
     //inicializa o numer de tarefas, uma sempre esta executando => -1
     userTasks = 0;
 
-    //cria semaforos de barreira
-    sem_create (&s_bar, 1) ;
-    sem_create (&s_susp, 1) ;
-    sem_create (&s_mqueue, 1) ;
 
     task_create(&task_dispatcher, dispatcher_body, "NULL");
 
