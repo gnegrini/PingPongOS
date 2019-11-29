@@ -16,7 +16,6 @@
 
 enum stat{Finished, Normal, New, Ready, Running, Suspended, Destroyed}; //status das tarefas
 enum typ{System, User};  //tipos de tarefas
-enum err{BarrierDestroyed, MQueueDestroyed};
 
 typedef struct queue_task 
 {
@@ -43,7 +42,6 @@ typedef struct task_t
     struct task_t *waits;
     struct task_t **queue;
     unsigned int wake_time;
-    int error_code;
     
 } task_t ;
 
@@ -60,9 +58,7 @@ typedef struct
 // estrutura que define um mutex
 typedef struct
 {
-  int lock;
-  task_t *queue;
-  int status;
+  // preencher quando necessário
 } mutex_t ;
 
 // estrutura que define uma barreira
@@ -72,36 +68,13 @@ typedef struct
   int max;
   task_t *queue;
   int status;
-  semaphore_t sem;
+
 } barrier_t ;
-
-// estrutura de uma msg para funcionar com fila
-typedef struct
-{  
- 
-  struct msg_t *prev, *next;
-  void *msg_data;
-
-}msg_t;
-
 
 // estrutura que define uma fila de mensagens
 typedef struct
 {
-  
-  msg_t *msg_queue;  //ponteiro da fila de msgs
-  int max;
-  int size;
-  int n_msgs;
-  task_t *task_full_mqueue;  //fila de tarefas que aguardam espaço na fila de mensagens
-  task_t *task_empty_mqueue;  //fila de tarefas que aguardam novas mensagens
-  int status;
-  semaphore_t sem;
-
+  // preencher quando necessário
 } mqueue_t ;
-
-
-
-
 
 #endif

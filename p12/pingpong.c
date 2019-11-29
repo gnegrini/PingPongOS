@@ -263,13 +263,15 @@ int task_id()
 // queue e mudando seu estado para "suspensa"; usa a tarefa atual se task==NULL
 void task_suspend(task_t *task, task_t **queue)
 {
-    sem_down(&s_susp);
 
     //atribui  tarefa atual se task==NULL
     if (task == NULL)
     {
         task = task_atual;
     }
+
+    // desativa preempcao para evitar condicoes de disputa na manipulacao das filas
+    preempcao = 0;
 
     //retira da fila atual (no caso, a fila de prontas)
     //se task==task_atual, ela já foi tirada da fila pelo scheduler    
@@ -283,7 +285,7 @@ void task_suspend(task_t *task, task_t **queue)
     //muda estado para suspensa
     task->status = Suspended;
 
-    sem_up(&s_susp);
+    preempcao = 1;
     
     //passa o controle para o dispatcher executar a proxima tarefa
     if(task == task_atual)
@@ -294,9 +296,10 @@ void task_suspend(task_t *task, task_t **queue)
 // tarefas prontas ("ready queue") e mudando seu estado para "pronta"
 void task_resume(task_t *task)
 {
-
-    sem_down(&s_susp);
     
+    // desativa preempcao para evitar condicoes de disputa na manipulacao das filas
+    preempcao = 0;
+
     //retira da fila atual
     queue_remove((queue_t **)task->queue, (queue_t *)task);
 
@@ -307,7 +310,8 @@ void task_resume(task_t *task)
     //muda seu estado para pronta
     task->status = Normal;
 
-    sem_up(&s_susp);
+    preempcao = 1;
+
 
 #ifdef DEBUG
     printf("task_resume: acordou tarefa %d\n", task->tid);
@@ -381,7 +385,7 @@ int sem_down(semaphore_t *s)
     {
         preempcao =1;
         task_suspend(NULL, &s->queue);
-        preempcao =0;
+        
     }
 
 
@@ -391,12 +395,16 @@ int sem_down(semaphore_t *s)
         return -1;
     }
     
+    preempcao = 1;
+
     return 0;
 }
 
 // libera o semáforo
 int sem_up(semaphore_t *s)
 {
+    //desativa preempcao
+    preempcao =0;
 
     //semaforo inexistente ou destruído
     if (s == NULL || s->status == Destroyed){
@@ -463,6 +471,7 @@ int barrier_create (barrier_t *b, int N){
     b->status = Normal;
     b->max = N-1;
     b->count = N-1;
+    sem_create(&b->sem, 1);
 
     return 0;
 
@@ -471,19 +480,23 @@ int barrier_create (barrier_t *b, int N){
 // Chega a uma barreira
 int barrier_join (barrier_t *b) {
     
-    sem_down(&s_bar);    
+    sem_down(&b->sem);    
 
     if(b == NULL || b->status == Destroyed){
-        sem_up(&s_bar);
+        sem_up(&b->sem);
         return -1;
         
     }
 
     if(b->count > 0){
         b->count -= 1;
-        sem_up(&s_bar);
+        sem_up(&b->sem);
         task_suspend(task_atual, &b->queue);
-        //sem_down(&s_bar);
+        
+        if(b->status == Destroyed){       //se a barreira foi destruida, a tarefa deve retornar com erro
+            return -1;        
+        }
+        
         return 0;
     }
     //acorda todas as tarefas da barreira
@@ -504,7 +517,7 @@ int barrier_join (barrier_t *b) {
         }    
 
         b->count = b->max;
-        sem_up(&s_bar);
+        sem_up(&b->sem);
         return 0;
     }
     
@@ -514,11 +527,13 @@ int barrier_join (barrier_t *b) {
 // Destrói uma barreira
 int barrier_destroy (barrier_t *b){
     
+    //impede que outra tasks tentem usar a barreira
+    sem_down(&b->sem);
+    
     if(b == NULL){
         return -1;
     }
-
-    sem_down(&s_bar);
+    
     int count = queue_size((queue_t *)b->queue);
     //acorda todas as tarefas que dependem da barreira
     if (count != 0)
@@ -541,8 +556,10 @@ int barrier_destroy (barrier_t *b){
 
     //destroi a barreira
     b->status=Destroyed;
-
-    sem_up(&s_bar);
+    
+    sem_up(&b->sem);
+    sem_destroy(&b->sem);
+    
     return 0;
 
 }
@@ -566,28 +583,30 @@ int mqueue_create (mqueue_t *queue, int max, int size){
     queue->msg_queue = NULL;    //fila vazia
     queue->status = Normal;
 
+    sem_create(&queue->sem, 1);
+    
     return 0;
 }
 
 // envia uma mensagem para a fila
 int mqueue_send (mqueue_t *queue, void *msg){
 
-    sem_down(&s_mqueue);
+    sem_down(&queue->sem);
 
     // checa por erros no uso da função
     if( queue==NULL || msg == NULL || sizeof(*msg) > queue->size || queue->status == Destroyed){
         #ifdef DEBUG    
             printf("Erro no envio da mensagem\n");
         #endif
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         return -1;
     }
 
     //suspende a tarefa caso fila esteja cheia
     while(queue->n_msgs >= queue->max && queue->status != Destroyed){
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         task_suspend(NULL, &queue->task_full_mqueue);    
-        sem_down(&s_mqueue);    
+        sem_down(&queue->sem);    
     }
     
     // checa se a fila ainda existe
@@ -595,7 +614,7 @@ int mqueue_send (mqueue_t *queue, void *msg){
         #ifdef DEBUG    
             printf("Fila destruida\n");
         #endif
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         return -1;
     }
 
@@ -625,7 +644,7 @@ int mqueue_send (mqueue_t *queue, void *msg){
     // incrementa o numero de msgs    
     queue->n_msgs += 1;
 
-    sem_up(&s_mqueue);
+    sem_up(&queue->sem);
 
     // acorda a primeira tarefa da fila que estava esperando msg na fila
     if(queue_size((queue_t*) queue->task_empty_mqueue) > 0){
@@ -642,23 +661,23 @@ int mqueue_send (mqueue_t *queue, void *msg){
 int mqueue_recv (mqueue_t *queue, void *msg){
 
 
-    sem_down(&s_mqueue);
+    sem_down(&queue->sem);
 
     // checa por erros no uso da função
     if( queue==NULL || msg == NULL || sizeof(*msg) > queue->size || queue->status == Destroyed){
         #ifdef DEBUG    
             printf("Erro no recebimento da mensagem\n");
         #endif
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         return -1;
     }
 
     //suspende tarefa caso fila esteja vazia
     // deve ser um while pq a tarefa pode acordar e outra consumir a msg antes dela continuar
     while(queue->n_msgs <= 0 && queue->status != Destroyed){
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         task_suspend(NULL, &queue->task_empty_mqueue);
-        sem_down(&s_mqueue);        
+        sem_down(&queue->sem);        
     }
     
 
@@ -667,7 +686,7 @@ int mqueue_recv (mqueue_t *queue, void *msg){
         #ifdef DEBUG
             printf("Fila destruida\n");
         #endif
-        sem_up(&s_mqueue);
+        sem_up(&queue->sem);
         return -1;
     }    
 
@@ -678,7 +697,7 @@ int mqueue_recv (mqueue_t *queue, void *msg){
     bcopy(new_m->msg_data, msg, queue->size);
 
     // libera a memoria da msg
-    new_m->next = NULL;
+    new_m->next = NULL;     //apenas por redundancia
     new_m->prev = NULL;
     free(new_m->msg_data);
     free(new_m);
@@ -687,7 +706,7 @@ int mqueue_recv (mqueue_t *queue, void *msg){
     // decrementa n. msgs da fila
     queue->n_msgs -= 1;
 
-    sem_up(&s_mqueue);
+    sem_up(&queue->sem);
 
     // acorda primeira tarefa que aguardava espaço na fila
     if(queue_size((queue_t*) queue->task_full_mqueue) > 0){
@@ -706,7 +725,7 @@ int mqueue_destroy (mqueue_t *queue){
         return -1;
     }
 
-    sem_down(&s_mqueue);
+    sem_down(&queue->sem);
 
     //libera as tarefas
     while (queue_size((queue_t*) queue->task_full_mqueue) > 0)
@@ -721,15 +740,36 @@ int mqueue_destroy (mqueue_t *queue){
         task_resume(queue->task_empty_mqueue);
     }
     
+    //libera a memoria alocada das msgs (se ainda existerem)
+
+    int count = queue_size((queue_t *)queue->msg_queue);        
+        if (count != 0)
+        {
+            msg_t *atual = queue->msg_queue;
+            msg_t *m_next;
+
+            for (int i = 0; i < count; i++)
+            {
+                m_next = (msg_t *) atual->next;
+
+                free(atual->msg_data);
+                free(atual);               
+
+                atual = m_next;
+            }
+        }
+
 
     //destroi o conteudo
+    queue->status = Destroyed;
     queue->msg_queue = NULL;
     queue->n_msgs = 0;
     queue->task_empty_mqueue = NULL;
     queue->task_full_mqueue = NULL;
-    queue->status = Destroyed;
+    
 
-    sem_up(&s_mqueue);
+    sem_up(&queue->sem);
+    sem_destroy(&queue->sem);
 
     return 0;
 
